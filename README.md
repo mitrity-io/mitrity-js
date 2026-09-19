@@ -16,10 +16,13 @@ Contract: [iag-specs/sentinel/adapters.md](https://github.com/mitrity-io/iag-spe
 
 ## Install
 
-Until the first npm release, install from git at a pinned ref:
+Until the first npm release, install from git at a pinned ref (a release tag
+once one exists, a commit SHA until then). The package builds on install from
+a git dependency only if `dist/` is present, so prefer the tarball of a CI
+build or wait for the npm release:
 
 ```bash
-npm install "github:mitrity-io/mitrity-js#v0.1.0" @anthropic-ai/claude-agent-sdk
+npm install "github:mitrity-io/mitrity-js#<ref>" @anthropic-ai/claude-agent-sdk
 ```
 
 Node ≥ 20. No runtime dependencies beyond Node's built-ins;
