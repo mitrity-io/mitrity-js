@@ -1,0 +1,164 @@
+name: Release
+
+# Publishes a tagged commit of main to npm and attaches the tarball to a GitHub
+# Release. npm authenticates the workflow itself (trusted publishing over OIDC)
+# and generates the provenance attestation; no npm token exists anywhere.
+#
+#   build    verifies the tag, runs lint/typecheck/test/build, packs the tarball   contents: read
+#   publish  publishes exactly the tarball build produced                          environment npm, id-token: write
+#   release  creates the GitHub Release, changelog section as notes                contents: write
+#
+# The OIDC token is only minted in publish, which runs no project or third-party
+# code: no checkout, no npm ci, only the download of build's tarball. The release
+# comes last, so nothing is announced for a version that failed to publish. The
+# founder checklist and the per-release steps are in RELEASING.md.
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+      npm_tag: ${{ steps.check.outputs.npm_tag }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the ancestry check below needs main's history
+          persist-credentials: false
+
+      - name: Verify the tagged commit is on main
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          commit=$(git rev-parse "refs/tags/$TAG^{commit}")
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "::error::$TAG points at $commit, which is not on main; only reviewed commits on main are released"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Verify the tag matches the package version and has a changelog entry
+        id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node .github/scripts/release-check.js --notes-file release-notes.md
+
+      - run: npm ci
+
+      - name: Lint, type-check, test and build
+        run: npm run check
+
+      - name: Pack the tarball
+        id: pack
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          npm pack --json > pack.json
+          packed=$(jq -r '.[0].version' pack.json)
+          if [ "$packed" != "$VERSION" ]; then
+            echo "::error::npm pack produced version $packed, expected $VERSION"
+            exit 1
+          fi
+          echo "tarball=$(jq -r '.[0].filename' pack.json)" >> "$GITHUB_OUTPUT"
+          echo "Tarball contents:"
+          jq -r '.[0].files[].path' pack.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package
+          path: ${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@mitrity/sdk/v/${{ needs.build.outputs.version }}
+    permissions:
+      id-token: write # trusted publishing: npm verifies this job's OIDC token; there is no NODE_AUTH_TOKEN
+    steps:
+      # No registry-url here on purpose: it would write an .npmrc auth line and a
+      # placeholder NODE_AUTH_TOKEN, and npm prefers a token over OIDC when one is set.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24" # bundles an npm that supports trusted publishing (11.5.1+)
+
+      - name: Verify npm supports trusted publishing
+        run: |
+          version=$(npm --version)
+          if [ "$(printf '%s\n' 11.5.1 "$version" | sort -V | head -n 1)" != "11.5.1" ]; then
+            echo "::error::npm $version cannot do trusted publishing; 11.5.1 or later is required"
+            exit 1
+          fi
+          echo "npm $version"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+
+      - name: Publish with provenance
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          NPM_TAG: ${{ needs.build.outputs.npm_tag }}
+        run: npm publish "$TARBALL" --provenance --access public --tag "$NPM_TAG"
+
+  release:
+    name: GitHub Release
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the release and upload its asset
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-notes
+
+      - name: Create the release with the tarball attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # The tag came from a release published on GitHub: keep its notes, attach the asset.
+            gh release upload "$TAG" --clobber "$TARBALL"
+          else
+            flags=()
+            if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file release-notes.md "${flags[@]}" "$TARBALL"
+          fi
