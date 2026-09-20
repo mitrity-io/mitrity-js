@@ -8,7 +8,7 @@ tag needs a dated `## [X.Y.Z] - YYYY-MM-DD` section (see RELEASING.md).
 
 ## [Unreleased]
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-09-20
 
 ### Added
 
