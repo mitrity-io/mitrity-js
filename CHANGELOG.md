@@ -8,6 +8,14 @@ tag needs a dated `## [X.Y.Z] - YYYY-MM-DD` section (see RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- The README, `SECURITY.md` and the source comments link to the public adapter
+  contract and admission API pages
+  (https://mitrity.com/docs/integrations/adapters and
+  https://mitrity.com/docs/integrations/admission-api) instead of the
+  specification repository.
+
 ## [0.1.0] - 2026-09-20
 
 ### Added
