@@ -7,6 +7,18 @@ updates:
     groups:
       dev-tooling:
         patterns: ["eslint*", "typescript*", "@types/*", "vitest", "tsup"]
+    ignore:
+      # typescript-eslint 8.x declares a typescript peer range of ">=4.8.4 <6.1.0";
+      # lift this once a typescript-eslint release supports TypeScript 7.
+      - dependency-name: "typescript"
+        versions: [">=6.1"]
+      # vitest 5 requires Node >=22.12 and @types/node 23+ types Node APIs that are
+      # absent on Node 20; lift both when Node 20 leaves the supported range
+      # (package.json engines, the CI test matrix).
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
