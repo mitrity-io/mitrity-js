@@ -1,7 +1,7 @@
 /**
  * MITRITY governance adapter for TypeScript and JavaScript agents.
  *
- * Contract: https://github.com/mitrity-io/iag-specs/blob/main/sentinel/adapters.md
+ * Contract: https://mitrity.com/docs/integrations/adapters
  */
 export { VERSION } from "./version.js";
 export { canonicalJson, configHash } from "./canonical.js";

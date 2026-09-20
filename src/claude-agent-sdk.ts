@@ -5,7 +5,8 @@
  * so the MITRITY gateway never sees them. This module is what does: a `PreToolUse` hook that admits
  * each call through the co-located edge's admission API before the SDK runs it, a `PostToolUse`
  * hook that keeps the coverage claim honest, and a `SessionStart` hook that attests the runtime's
- * posture. Every guarantee in iag-specs `sentinel/adapters.md` is implemented here.
+ * posture. Every guarantee in the adapter contract is implemented here, and the guarantee
+ * numbers in the comments (G1–G11) refer to it: https://mitrity.com/docs/integrations/adapters
  *
  * `@anthropic-ai/claude-agent-sdk` is imported for types only; the package is an optional peer.
  */
@@ -114,7 +115,10 @@ function optionalBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
-/** Silent: no `permissionDecision`, so the developer's own permission flow continues (adapters.md G10). */
+/**
+ * Silent: no `permissionDecision`, so the developer's own permission flow continues (the
+ * adapter contract, guarantee G10).
+ */
 function allow(): SyncHookJSONOutput {
   return {};
 }
@@ -195,7 +199,7 @@ export class Governor {
     const sources: SettingSource[] = rest.settingSources ?? [];
     if (!strict) {
       // Servers those files add are ungoverned paths this adapter did not enumerate; naming the
-      // gap is the honest attestation (adapters.md G6).
+      // gap is the honest attestation (the adapter contract, guarantee G6).
       for (const source of sources.length > 0 ? sources : ALL_SETTING_SOURCES) other.push(`settings:${source}`);
     }
 
@@ -327,7 +331,8 @@ export class Governor {
       this.stats.allowed += 1;
       if (verdict.updatedInput !== null) {
         // Routed (or rewritten): the merged input is what runs, and the explicit allow keeps a
-        // human from being prompted about a relay command that carries a ticket (adapters.md G10).
+        // human from being prompted about a relay command that carries a ticket (the adapter
+        // contract, guarantee G10).
         this.stats.routed += 1;
         if (verdict.routedTo) this.logger.debug?.(`MITRITY routed ${toolName} to ${verdict.routedTo}`);
         return {
@@ -375,7 +380,7 @@ export class Governor {
     return allow();
   };
 
-  /** Attest the runtime's posture when the session starts (adapters.md G6). */
+  /** Attest the runtime's posture when the session starts (the adapter contract, guarantee G6). */
   readonly sessionStart: HookCallback = async (input): Promise<HookJSONOutput> => {
     try {
       await this.ensureAttested(input);
@@ -388,11 +393,11 @@ export class Governor {
   /**
    * The hold budget one decision may spend, and the matcher timeout that contains it.
    *
-   * The adapter must be the one that answers (adapters.md G3), so every term it can spend inside
-   * one PreToolUse — the attestation, the decision deadline, the hold wait, the hold margin — plus
-   * slack has to fit under the framework's own 600 s hook budget. The hold budget is what gives
-   * when it does not: waiting less on a human is a deny the operator can see; a hook the framework
-   * kills is a decision nobody made.
+   * The adapter must be the one that answers (the adapter contract, guarantee G3), so every term
+   * it can spend inside one PreToolUse — the attestation, the decision deadline, the hold wait,
+   * the hold margin — plus slack has to fit under the framework's own 600 s hook budget. The hold
+   * budget is what gives when it does not: waiting less on a human is a deny the operator can
+   * see; a hook the framework kills is a decision nobody made.
    */
   private budgets(): { holdMs: number; timeoutSeconds: number } {
     const cfg = this.client.config;
