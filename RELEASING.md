@@ -8,7 +8,7 @@ verifies the workflow's OIDC token and signs the provenance attestation; no npm
 token exists anywhere), and creates the GitHub Release with the version's
 CHANGELOG section as notes and the tarball attached.
 
-## One-time setup (founder)
+## One-time setup (maintainer)
 
 1. **npm account**: two-factor authentication enabled.
 2. **Organization `mitrity`**: <https://www.npmjs.com/org/mitrity> must exist
