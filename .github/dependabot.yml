@@ -8,10 +8,13 @@ updates:
       dev-tooling:
         patterns: ["eslint*", "typescript*", "@types/*", "vitest", "tsup"]
     ignore:
-      # typescript-eslint 8.x declares a typescript peer range of ">=4.8.4 <6.1.0";
-      # lift this once a typescript-eslint release supports TypeScript 7.
+      # tsup 8.5's declaration build sets `baseUrl` in its own compiler options,
+      # which TypeScript 6 rejects (TS5101: deprecated, removed in 7.0), and
+      # typescript-eslint 8.x declares a typescript peer range of ">=4.8.4 <6.1.0".
+      # Lift this once tsup no longer sets `baseUrl` and typescript-eslint supports
+      # the target major.
       - dependency-name: "typescript"
-        versions: [">=6.1"]
+        versions: [">=6"]
       # vitest 5 requires Node >=22.12 and @types/node 23+ types Node APIs that are
       # absent on Node 20; lift both when Node 20 leaves the supported range
       # (package.json engines, the CI test matrix).
